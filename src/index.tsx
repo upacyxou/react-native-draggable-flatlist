@@ -2,23 +2,29 @@ import React from "react";
 import {
   Platform,
   StyleSheet,
-  FlatListProps,
+  SectionListProps,
   findNodeHandle,
   ViewStyle,
-  FlatList as RNFlatList,
-  NativeScrollEvent
+  SectionList as RNSectionList,
+  NativeScrollEvent,
+  SectionListData
 } from "react-native";
 import {
   PanGestureHandler,
   State as GestureState,
-  FlatList,
   GestureHandlerGestureEventNativeEvent,
-  PanGestureHandlerEventExtra
+  PanGestureHandlerEventExtra,
+  PanGestureHandlerGestureEvent,
+  ScrollView
 } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { springFill, setupCell } from "./procs";
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const createNativeWrapper = require("react-native-gesture-handler/createNativeWrapper");
+
+import { SectionList } from "./SectionList";
+
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList());
 
 const {
   Value,
@@ -75,7 +81,7 @@ const defaultProps = {
 
 type DefaultProps = Readonly<typeof defaultProps>;
 
-type AnimatedFlatListType<T> = { getNode: () => RNFlatList<T> };
+type AnimatedSectionListType<T> = { getNode: () => typeof AnimatedSectionList };
 
 export type DragEndParams<T> = {
   data: T[];
@@ -84,25 +90,36 @@ export type DragEndParams<T> = {
 };
 
 export type RenderItemParams<T> = {
-  item: T;
+  item: RenderItemParams<T>;
   index?: number; // This is technically a "last known index" since cells don't necessarily rerender when their index changes
   drag: () => void;
   isActive: boolean;
 };
+type sectionValue = {
+  data: any[];
+  section: any[];
+};
 
 type Modify<T, R> = Omit<T, keyof R> & R;
 type Props<T> = Modify<
-  FlatListProps<T>,
+  SectionListProps<T>,
   {
     autoscrollSpeed?: number;
     autoscrollThreshold?: number;
-    data: T[];
-    onRef?: (ref: React.RefObject<AnimatedFlatListType<T>>) => void;
+    data: sectionValue[];
+    onRef?: (ref: any) => void;
     onDragBegin?: (index: number) => void;
     onRelease?: (index: number) => void;
     onDragEnd?: (params: DragEndParams<T>) => void;
     renderItem: (params: RenderItemParams<T>) => React.ReactNode;
-    renderPlaceholder?: (params: { item: T; index: number }) => React.ReactNode;
+    renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode;
+    renderPlaceholder?: (params: {
+      item: any;
+      index: number;
+    }) => React.ReactNode;
+    keyExtractor: (item: RenderItemParams<T>, index: number) => string;
+    onMove?: (gestureEvent: PanGestureHandlerGestureEvent) => void;
+    isSectionHeader?: (itemToCheck: any) => boolean;
     animationConfig: Partial<Animated.SpringConfig>;
     activationDistance?: number;
     debug?: boolean;
@@ -139,14 +156,16 @@ function onNextFrame(callback: () => void) {
   });
 }
 
-class DraggableFlatList<T> extends React.Component<Props<T>, State> {
+class DraggableSectionList<T> extends React.Component<Props<T>, State> {
+  headersAndData: any[] = [];
+
   state: State = {
     activeKey: null,
     hoverComponent: null
   };
 
   containerRef = React.createRef<Animated.View>();
-  flatlistRef = React.createRef<AnimatedFlatListType<T>>();
+  SectionListRef = React.createRef<AnimatedSectionListType<T>>();
   panGestureHandlerRef = React.createRef<PanGestureHandler>();
 
   containerSize = new Value<number>(0);
@@ -239,7 +258,7 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
 
   keyToIndex = new Map<string, number>();
 
-  /** Whether we've sent an incomplete call to the FlatList to do a scroll */
+  /** Whether we've sent an incomplete call to the SectionList to do a scroll */
   isAutoscrolling = {
     native: new Value<number>(0),
     js: false
@@ -258,19 +277,45 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
   constructor(props: Props<T>) {
     super(props);
     const { data, onRef } = props;
-    data.forEach((item, index) => {
-      const key = this.keyExtractor(item, index);
+    data.forEach(item => {
+      this.headersAndData = [...this.headersAndData, item.section];
+      item.data.forEach(dataItem => {
+        this.headersAndData = [...this.headersAndData, dataItem];
+      });
+    });
+    this.headersAndData.forEach((dataOrHeader, index) => {
+      const key = this.keyExtractor(dataOrHeader, index);
       this.keyToIndex.set(key, index);
     });
-    onRef && onRef(this.flatlistRef);
+    onRef && onRef(this.SectionListRef);
   }
 
-  dataKeysHaveChanged = (a: T[], b: T[]) => {
-    const lengthHasChanged = a.length !== b.length;
-    if (lengthHasChanged) return true;
+  dataKeysHaveChanged = (a: sectionValue[], b: sectionValue[]) => {
+    const lengthOfSectionsChanged =
+      Object.keys(a).length !== Object.keys(b).length;
+    if (lengthOfSectionsChanged) return true;
+    let AheadersAndData: any[] = [];
+    let BheadersAndData: any[] = [];
 
-    const aKeys = a.map((d, i) => this.keyExtractor(d, i));
-    const bKeys = b.map((d, i) => this.keyExtractor(d, i));
+    a.forEach(item => {
+      AheadersAndData = [...AheadersAndData, item.section];
+      item.data.forEach(dataItem => {
+        AheadersAndData = [...AheadersAndData, dataItem];
+      });
+    });
+    const aKeys = AheadersAndData.map((dataOrHeader, index) =>
+      this.keyExtractor(dataOrHeader, index)
+    );
+
+    b.forEach(item => {
+      BheadersAndData = [...BheadersAndData, item.section];
+      item.data.forEach(dataItem => {
+        BheadersAndData = [...BheadersAndData, dataItem];
+      });
+    });
+    const bKeys = BheadersAndData.map((dataOrHeader, index) =>
+      this.keyExtractor(dataOrHeader, index)
+    );
 
     const sameKeys = aKeys.every(k => bKeys.includes(k));
     return !sameKeys;
@@ -281,8 +326,14 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
       prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey;
     const dataHasChanged = prevProps.data !== this.props.data;
     if (layoutInvalidationKeyHasChanged || dataHasChanged) {
-      this.props.data.forEach((item, index) => {
-        const key = this.keyExtractor(item, index);
+      this.props.data.forEach(item => {
+        this.headersAndData = [...this.headersAndData, item.section];
+        item.data.forEach(dataItem => {
+          this.headersAndData = [...this.headersAndData, dataItem];
+        });
+      });
+      this.headersAndData.forEach((dataOrHeader, index) => {
+        const key = this.keyExtractor(dataOrHeader, index);
         this.keyToIndex.set(key, index);
       });
       // Remeasure on next paint
@@ -361,23 +412,39 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
   };
 
   onDragEnd = ([from, to]: readonly number[]) => {
-    const { onDragEnd } = this.props;
-    if (onDragEnd) {
-      const { data } = this.props;
+    const { onDragEnd, isSectionHeader } = this.props;
+    this.headersAndData.forEach(e => {
+      console.log(this.props.isSectionHeader!(e));
+    });
+    let changedObject: sectionValue[] = [];
+    let lastSection: any;
+    if (onDragEnd && isSectionHeader) {
+      const data = this.headersAndData;
       let newData = [...data];
       if (from !== to) {
         newData.splice(from, 1);
         newData.splice(to, 0, data[from]);
       }
-
-      onDragEnd({ from, to, data: newData });
+      newData.forEach(item => {
+        if (isSectionHeader(item)) {
+          const objectToPush = { section: item, data: [] };
+          lastSection = item;
+          changedObject.push(objectToPush);
+          return;
+        }
+        changedObject[changedObject.length - 1].data = [
+          changedObject[changedObject.length - 1].data,
+          item
+        ];
+      });
+      onDragEnd({ from, to, data: changedObject });
     }
 
     const lo = Math.min(from, to) - 1;
     const hi = Math.max(from, to) + 1;
     for (let i = lo; i < hi; i++) {
       this.queue.push(() => {
-        const item = this.props.data[i];
+        const item = this.headersAndData[i];
         if (!item) return;
         const key = this.keyExtractor(item, i);
         return this.measureCell(key);
@@ -387,12 +454,20 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
     this.resetHoverState();
   };
 
-  updateCellData = (data: T[] = []) =>
-    data.forEach((item: T, index: number) => {
-      const key = this.keyExtractor(item, index);
+  updateCellData = (data: sectionValue[] = []) => {
+    let localHeadersAndData: any[] = [];
+    data.forEach(item => {
+      localHeadersAndData = [...localHeadersAndData, item.section];
+      item.data.forEach(dataItem => {
+        localHeadersAndData = [...localHeadersAndData, dataItem];
+      });
+    });
+    return localHeadersAndData.forEach((dataOrHeader, index) => {
+      const key = this.keyExtractor(dataOrHeader, index);
       const cell = this.cellData.get(key);
       if (cell) cell.currentIndex.setValue(index);
     });
+  };
 
   setCellData = (key: string, index: number) => {
     const clock = new Clock();
@@ -484,9 +559,17 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
     this.cellData.set(key, cellData);
   };
 
-  measureAll = (data: T[]) => {
-    data.forEach((d, i) => {
-      const key = this.keyExtractor(d, i);
+  measureAll = (sections: sectionValue[]) => {
+    let localHeadersAndData: any = [];
+
+    sections.forEach(item => {
+      localHeadersAndData = [localHeadersAndData, item.section];
+      item.data.forEach(dataItem => {
+        localHeadersAndData = [localHeadersAndData, dataItem];
+      });
+    });
+    localHeadersAndData.forEach((dataOrHeader: any, index: number) => {
+      const key = this.keyExtractor(dataOrHeader, index);
       this.measureCell(key);
     });
   };
@@ -543,17 +626,17 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
 
       const ref = this.cellRefs.get(key);
       const viewNode = ref && ref.current && ref.current.getNode();
-      const flatListNode =
-        this.flatlistRef.current && this.flatlistRef.current.getNode();
+      const SectionListNode =
+        this.SectionListRef.current && this.SectionListRef.current.getNode();
 
-      if (viewNode && flatListNode) {
-        const nodeHandle = findNodeHandle(flatListNode);
+      if (viewNode && SectionListNode) {
+        const nodeHandle = findNodeHandle(SectionListNode);
         if (nodeHandle) viewNode.measureLayout(nodeHandle, onSuccess, onFail);
       } else {
         let reason = !ref
           ? "no ref"
-          : !flatListNode
-          ? "no flatlist node"
+          : !SectionListNode
+          ? "no SectionList node"
           : "invalid ref";
         if (this.props.debug)
           console.log(`## can't measure ${key} reason: ${reason}`);
@@ -563,10 +646,12 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
     });
   };
 
-  keyExtractor = (item: T, index: number) => {
+  keyExtractor = (item: RenderItemParams<T>, index: number) => {
     if (this.props.keyExtractor) return this.props.keyExtractor(item, index);
     else
-      throw new Error("You must provide a keyExtractor to DraggableFlatList");
+      throw new Error(
+        "You must provide a keyExtractor to DraggableSectionList"
+      );
   };
 
   onContainerLayout = () => {
@@ -598,8 +683,10 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
       this.targetScrollOffset.setValue(offset);
       this.isAutoscrolling.native.setValue(1);
       this.isAutoscrolling.js = true;
-      const flatlistRef = this.flatlistRef.current;
-      if (flatlistRef) flatlistRef.getNode().scrollToOffset({ offset });
+      const SectionListRef = this.SectionListRef.current;
+      SectionListRef?.getNode()._wrapperListRef._listRef.scrollToOffset({
+        offset: offset
+      });
     });
 
   getScrollTargetOffset = (
@@ -852,26 +939,101 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
     );
   };
 
-  renderItem = ({ item, index }: { item: T; index: number }) => {
-    const key = this.keyExtractor(item, index);
+  renderSectionHeader = (info: SectionListData<T>) => {
+    const index = this.headersAndData.indexOf(info.section.section);
+    const { activeKey } = this.state;
+    const key = this.keyExtractor(info.section.section, index);
     if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index);
-    const { renderItem } = this.props;
     if (!this.cellData.get(key)) this.setCellData(key, index);
+    let ref = this.cellRefs.get(key);
+    if (!ref) {
+      ref = React.createRef();
+      this.cellRefs.set(key, ref);
+    }
     const { onUnmount } = this.cellData.get(key) || {
       onUnmount: () => {
         if (this.props.debug) console.log("## error, no cellData");
       }
     };
+    const cellData = this.cellData.get(key);
+    if (!cellData) return null;
+    const { horizontal } = this.props;
+    const isActiveCell = activeKey === key;
+    const { style, onLayout: onCellLayout } = cellData;
     return (
-      <RowItem
-        extraData={this.props.extraData}
-        itemKey={key}
-        keyToIndex={this.keyToIndex}
-        renderItem={renderItem}
-        item={item}
-        drag={this.drag}
-        onUnmount={onUnmount}
-      />
+      <Animated.View style={style}>
+        <Animated.View
+          pointerEvents={activeKey ? "none" : "auto"}
+          style={{
+            flexDirection: horizontal ? "row" : "column"
+          }}
+        >
+          <Animated.View
+            ref={ref}
+            onLayout={onCellLayout}
+            style={isActiveCell ? { opacity: 0 } : undefined}
+          >
+            <RowSection
+              extraData={this.props.extraData}
+              itemKey={key}
+              keyToIndex={this.keyToIndex}
+              renderSectionHeader={this.props.renderSectionHeader}
+              item={info.section}
+              drag={this.drag}
+              onUnmount={onUnmount}
+            />
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
+    );
+  };
+
+  renderItem = (item: RenderItemParams<T>) => {
+    const index = this.headersAndData.indexOf(item.item);
+    const key = this.keyExtractor(item.item, index);
+    const { activeKey } = this.state;
+    const { horizontal } = this.props;
+    if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index);
+    if (!this.cellData.get(key)) this.setCellData(key, index);
+    let ref = this.cellRefs.get(key);
+    if (!ref) {
+      ref = React.createRef();
+      this.cellRefs.set(key, ref);
+    }
+    const { onUnmount } = this.cellData.get(key) || {
+      onUnmount: () => {
+        if (this.props.debug) console.log("## error, no cellData");
+      }
+    };
+    const cellData = this.cellData.get(key);
+    if (!cellData) return null;
+    const { style, onLayout: onCellLayout } = cellData;
+    const isActiveCell = activeKey === key;
+    return (
+      <Animated.View style={style}>
+        <Animated.View
+          pointerEvents={activeKey ? "none" : "auto"}
+          style={{
+            flexDirection: horizontal ? "row" : "column"
+          }}
+        >
+          <Animated.View
+            ref={ref}
+            onLayout={onCellLayout}
+            style={isActiveCell ? { opacity: 0 } : undefined}
+          >
+            <RowItem
+              extraData={this.props.extraData}
+              itemKey={key}
+              keyToIndex={this.keyToIndex}
+              renderItem={this.props.renderItem}
+              item={item}
+              drag={this.drag}
+              onUnmount={onUnmount}
+            />
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
     );
   };
 
@@ -910,41 +1072,6 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
     return (
       <Animated.View style={style}>
         {renderPlaceholder({ item: activeItem, index: activeIndex })}
-      </Animated.View>
-    );
-  };
-
-  CellRendererComponent = (cellProps: any) => {
-    const { item, index, children, onLayout } = cellProps;
-    const { horizontal } = this.props;
-    const { activeKey } = this.state;
-    const key = this.keyExtractor(item, index);
-    if (!this.cellData.get(key)) this.setCellData(key, index);
-    const cellData = this.cellData.get(key);
-    if (!cellData) return null;
-    const { style, onLayout: onCellLayout } = cellData;
-    let ref = this.cellRefs.get(key);
-    if (!ref) {
-      ref = React.createRef();
-      this.cellRefs.set(key, ref);
-    }
-    const isActiveCell = activeKey === key;
-    return (
-      <Animated.View onLayout={onLayout} style={style}>
-        <Animated.View
-          pointerEvents={activeKey ? "none" : "auto"}
-          style={{
-            flexDirection: horizontal ? "row" : "column"
-          }}
-        >
-          <Animated.View
-            ref={ref}
-            onLayout={onCellLayout}
-            style={isActiveCell ? { opacity: 0 } : undefined}
-          >
-            {children}
-          </Animated.View>
-        </Animated.View>
       </Animated.View>
     );
   };
@@ -1001,15 +1128,16 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
         >
           {!!onPlaceholderIndexChange && this.renderOnPlaceholderIndexChange()}
           {!!renderPlaceholder && this.renderPlaceholder()}
-          <AnimatedFlatList
+          <AnimatedSectionList
             {...this.props}
-            CellRendererComponent={this.CellRendererComponent}
-            ref={this.flatlistRef}
+            sections={this.props.data}
+            ref={this.SectionListRef}
             onContentSizeChange={this.onListContentSizeChange}
-            scrollEnabled={!hoverComponent && scrollEnabled}
             renderItem={this.renderItem}
+            renderSectionHeader={this.renderSectionHeader}
             extraData={this.state}
             keyExtractor={this.keyExtractor}
+            scrollEnabled={!hoverComponent && scrollEnabled}
             onScroll={this.onScroll}
             scrollEventThrottle={1}
           />
@@ -1057,13 +1185,24 @@ class DraggableFlatList<T> extends React.Component<Props<T>, State> {
   }
 }
 
-export default DraggableFlatList;
+export default DraggableSectionList;
+
+type RowSectionProps<T> = {
+  extraData?: any;
+  drag: (hoverComponent: React.ReactNode, itemKey: string) => void;
+  keyToIndex: Map<string, number>;
+  item: RenderItemParams<T>;
+  renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode;
+  itemKey: string;
+  onUnmount: () => void;
+  debug?: boolean;
+};
 
 type RowItemProps<T> = {
   extraData?: any;
   drag: (hoverComponent: React.ReactNode, itemKey: string) => void;
   keyToIndex: Map<string, number>;
-  item: T;
+  item: RenderItemParams<T>;
   renderItem: (params: RenderItemParams<T>) => React.ReactNode;
   itemKey: string;
   onUnmount: () => void;
@@ -1092,6 +1231,43 @@ class RowItem<T> extends React.PureComponent<RowItemProps<T>> {
   render() {
     const { renderItem, item, keyToIndex, itemKey } = this.props;
     return renderItem({
+      isActive: false,
+      item,
+      index: keyToIndex.get(itemKey),
+      drag: this.drag
+    });
+  }
+}
+
+class RowSection<T> extends React.PureComponent<RowSectionProps<T>> {
+  drag = () => {
+    const {
+      drag,
+      renderSectionHeader,
+      item,
+      keyToIndex,
+      itemKey,
+      debug
+    } = this.props;
+    const hoverComponent = renderSectionHeader({
+      isActive: true,
+      item,
+      index: keyToIndex.get(itemKey),
+      drag: () => {
+        if (debug)
+          console.log("## attempt to call drag() on hovering component");
+      }
+    });
+    drag(hoverComponent, itemKey);
+  };
+
+  componentWillUnmount() {
+    this.props.onUnmount();
+  }
+
+  render() {
+    const { renderSectionHeader, item, keyToIndex, itemKey } = this.props;
+    return renderSectionHeader({
       isActive: false,
       item,
       index: keyToIndex.get(itemKey),
