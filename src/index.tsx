@@ -1,3 +1,5 @@
+const hash = require("object-hash");
+const { decycle } = require("cycle");
 import React from "react";
 import {
   Platform,
@@ -5,7 +7,6 @@ import {
   SectionListProps,
   findNodeHandle,
   ViewStyle,
-  SectionList as RNSectionList,
   NativeScrollEvent,
   SectionListData
 } from "react-native";
@@ -14,8 +15,7 @@ import {
   State as GestureState,
   GestureHandlerGestureEventNativeEvent,
   PanGestureHandlerEventExtra,
-  PanGestureHandlerGestureEvent,
-  ScrollView
+  PanGestureHandlerGestureEvent
 } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
 import { springFill, setupCell } from "./procs";
@@ -278,9 +278,9 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     super(props);
     const { data, onRef } = props;
     data.forEach(item => {
-      this.headersAndData = [...this.headersAndData, item.section];
+      this.headersAndData.push(item.section);
       item.data.forEach(dataItem => {
-        this.headersAndData = [...this.headersAndData, dataItem];
+        this.headersAndData.push(dataItem);
       });
     });
     this.headersAndData.forEach((dataOrHeader, index) => {
@@ -318,31 +318,39 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     );
 
     const sameKeys = aKeys.every(k => bKeys.includes(k));
-    return !sameKeys;
+    console.log(`same
+    key? ${sameKeys}`);
+    return sameKeys;
   };
 
-  componentDidUpdate = async (prevProps: Props<T>, prevState: State) => {
+  componentDidUpdate = (prevProps: Props<T>, prevState: State) => {
+    console.log(this.keyToIndex);
     const layoutInvalidationKeyHasChanged =
       prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey;
-    const dataHasChanged = prevProps.data !== this.props.data;
+    const hashCurr = hash(decycle(this.props.data));
+    const hashPrev = hash(decycle(prevProps.data));
+    const dataHasChanged = hashCurr !== hashPrev;
     if (layoutInvalidationKeyHasChanged || dataHasChanged) {
+      this.headersAndData = [];
       this.props.data.forEach(item => {
-        this.headersAndData = [...this.headersAndData, item.section];
+        this.headersAndData.push(item.section);
         item.data.forEach(dataItem => {
-          this.headersAndData = [...this.headersAndData, dataItem];
+          this.headersAndData.push(dataItem);
         });
       });
+      // this.keyToIndex.clear()
+      this.keyToIndex.clear();
       this.headersAndData.forEach((dataOrHeader, index) => {
         const key = this.keyExtractor(dataOrHeader, index);
         this.keyToIndex.set(key, index);
       });
       // Remeasure on next paint
-      this.updateCellData(this.props.data);
+      this.updateCellData();
       onNextFrame(this.flushQueue);
-
       if (
         layoutInvalidationKeyHasChanged ||
-        this.dataKeysHaveChanged(prevProps.data, this.props.data)
+        dataHasChanged
+        // this.dataKeysHaveChanged(prevProps.data, this.props.data)
       ) {
         this.queue.push(() => this.measureAll(this.props.data));
       }
@@ -351,6 +359,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     if (!prevState.activeKey && this.state.activeKey) {
       const index = this.keyToIndex.get(this.state.activeKey);
       if (index !== undefined) {
+        console.log(10);
         this.spacerIndex.setValue(index);
         this.activeIndex.setValue(index);
         this.touchCellOffset.setValue(0);
@@ -413,29 +422,31 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
   onDragEnd = ([from, to]: readonly number[]) => {
     const { onDragEnd, isSectionHeader } = this.props;
-    this.headersAndData.forEach(e => {
-      console.log(this.props.isSectionHeader!(e));
-    });
-    let changedObject: sectionValue[] = [];
-    let lastSection: any;
-    if (onDragEnd && isSectionHeader) {
-      const data = this.headersAndData;
-      let newData = [...data];
-      if (from !== to) {
-        newData.splice(from, 1);
-        newData.splice(to, 0, data[from]);
-      }
-      newData.forEach(item => {
-        if (isSectionHeader(item)) {
-          const objectToPush = { section: item, data: [] };
-          lastSection = item;
-          changedObject.push(objectToPush);
+
+    let newData = [...this.headersAndData];
+
+    if (from !== to) {
+      newData.splice(from, 1);
+      newData.splice(to, 0, this.headersAndData[from]);
+    }
+
+    const changedObject: any = {};
+    const highetThanFirstSection: any[] = [];
+
+    if (isSectionHeader && onDragEnd) {
+      let lastSection: any;
+
+      newData.forEach(headerOrData => {
+        if (isSectionHeader(headerOrData)) {
+          lastSection = headerOrData;
           return;
         }
-        changedObject[changedObject.length - 1].data = [
-          changedObject[changedObject.length - 1].data,
-          item
-        ];
+        if (lastSection) {
+          if (!changedObject[lastSection]) changedObject[lastSection] = [];
+          changedObject[lastSection].push(headerOrData);
+        } else {
+          highetThanFirstSection.push(lastSection);
+        }
       });
       onDragEnd({ from, to, data: changedObject });
     }
@@ -454,15 +465,8 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     this.resetHoverState();
   };
 
-  updateCellData = (data: sectionValue[] = []) => {
-    let localHeadersAndData: any[] = [];
-    data.forEach(item => {
-      localHeadersAndData = [...localHeadersAndData, item.section];
-      item.data.forEach(dataItem => {
-        localHeadersAndData = [...localHeadersAndData, dataItem];
-      });
-    });
-    return localHeadersAndData.forEach((dataOrHeader, index) => {
+  updateCellData = () => {
+    return this.headersAndData.forEach((dataOrHeader, index) => {
       const key = this.keyExtractor(dataOrHeader, index);
       const cell = this.cellData.get(key);
       if (cell) cell.currentIndex.setValue(index);
@@ -560,15 +564,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
   };
 
   measureAll = (sections: sectionValue[]) => {
-    let localHeadersAndData: any = [];
-
-    sections.forEach(item => {
-      localHeadersAndData = [localHeadersAndData, item.section];
-      item.data.forEach(dataItem => {
-        localHeadersAndData = [localHeadersAndData, dataItem];
-      });
-    });
-    localHeadersAndData.forEach((dataOrHeader: any, index: number) => {
+    this.headersAndData.forEach((dataOrHeader: any, index: number) => {
       const key = this.keyExtractor(dataOrHeader, index);
       this.measureCell(key);
     });
