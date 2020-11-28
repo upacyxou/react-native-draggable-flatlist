@@ -1,6 +1,7 @@
-const hash = require("object-hash");
-const { decycle } = require("cycle");
-import React from "react";
+const hash = require('object-hash')
+const { decycle } = require('cycle')
+import isEqual from 'lodash.isequal'
+import React from 'react'
 import {
   Platform,
   StyleSheet,
@@ -8,23 +9,23 @@ import {
   findNodeHandle,
   ViewStyle,
   NativeScrollEvent,
-  SectionListData
-} from "react-native";
+  SectionListData,
+} from 'react-native'
 import {
   PanGestureHandler,
   State as GestureState,
   GestureHandlerGestureEventNativeEvent,
   PanGestureHandlerEventExtra,
-  PanGestureHandlerGestureEvent
-} from "react-native-gesture-handler";
-import Animated from "react-native-reanimated";
-import { springFill, setupCell } from "./procs";
+  PanGestureHandlerGestureEvent,
+} from 'react-native-gesture-handler'
+import Animated from 'react-native-reanimated'
+import { springFill, setupCell } from './procs'
 
-const createNativeWrapper = require("react-native-gesture-handler/createNativeWrapper");
+const createNativeWrapper = require('react-native-gesture-handler/createNativeWrapper')
 
-import { SectionList } from "./SectionList";
+import { SectionList } from './SectionList'
 
-const AnimatedSectionList = Animated.createAnimatedComponent(SectionList());
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList())
 
 const {
   Value,
@@ -54,20 +55,20 @@ const {
   defined,
   min,
   max,
-  debug
-} = Animated;
+  debug,
+} = Animated
 
 // Fire onScrollComplete when within this many
 // px of target offset
-const scrollPositionTolerance = 2;
+const scrollPositionTolerance = 2
 const defaultAnimationConfig = {
   damping: 20,
   mass: 0.2,
   stiffness: 100,
   overshootClamping: false,
   restSpeedThreshold: 0.2,
-  restDisplacementThreshold: 0.2
-};
+  restDisplacementThreshold: 0.2,
+}
 
 const defaultProps = {
   autoscrollThreshold: 30,
@@ -76,175 +77,175 @@ const defaultProps = {
   scrollEnabled: true,
   dragHitSlop: 0,
   activationDistance: 0,
-  dragItemOverflow: false
-};
+  dragItemOverflow: false,
+}
 
-type DefaultProps = Readonly<typeof defaultProps>;
+type DefaultProps = Readonly<typeof defaultProps>
 
-type AnimatedSectionListType<T> = { getNode: () => typeof AnimatedSectionList };
+type AnimatedSectionListType<T> = { getNode: () => typeof AnimatedSectionList }
 
 export type DragEndParams<T> = {
-  data: T[];
-  from: number;
-  to: number;
-};
+  data: T[]
+  from: number
+  to: number
+}
 
 export type RenderItemParams<T> = {
-  item: RenderItemParams<T>;
-  index?: number; // This is technically a "last known index" since cells don't necessarily rerender when their index changes
-  drag: () => void;
-  isActive: boolean;
-};
+  item: RenderItemParams<T>
+  index?: number // This is technically a "last known index" since cells don't necessarily rerender when their index changes
+  drag: () => void
+  isActive: boolean
+}
 type sectionValue = {
-  data: any[];
-  section: any[];
-};
+  data: any[]
+  section: any[]
+}
 
-type Modify<T, R> = Omit<T, keyof R> & R;
+type Modify<T, R> = Omit<T, keyof R> & R
 type Props<T> = Modify<
   SectionListProps<T>,
   {
-    autoscrollSpeed?: number;
-    autoscrollThreshold?: number;
-    data: sectionValue[];
-    onRef?: (ref: any) => void;
-    onDragBegin?: (index: number) => void;
-    onRelease?: (index: number) => void;
-    onDragEnd?: (params: DragEndParams<T>) => void;
-    renderItem: (params: RenderItemParams<T>) => React.ReactNode;
-    renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode;
+    autoscrollSpeed?: number
+    autoscrollThreshold?: number
+    data: sectionValue[]
+    onRef?: (ref: any) => void
+    onDragBegin?: (index: number) => void
+    onRelease?: (index: number) => void
+    onDragEnd?: (params: DragEndParams<T>) => void
+    renderItem: (params: RenderItemParams<T>) => React.ReactNode
+    renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode
     renderPlaceholder?: (params: {
-      item: any;
-      index: number;
-    }) => React.ReactNode;
-    keyExtractor: (item: RenderItemParams<T>, index: number) => string;
-    onMove?: (gestureEvent: PanGestureHandlerGestureEvent) => void;
-    isSectionHeader?: (itemToCheck: any) => boolean;
-    animationConfig: Partial<Animated.SpringConfig>;
-    activationDistance?: number;
-    debug?: boolean;
-    layoutInvalidationKey?: string;
-    onScrollOffsetChange?: (scrollOffset: number) => void;
-    onPlaceholderIndexChange?: (placeholderIndex: number) => void;
-    dragItemOverflow?: boolean;
+      item: any
+      index: number
+    }) => React.ReactNode
+    keyExtractor: (item: RenderItemParams<T>, index: number) => string
+    onMove?: (gestureEvent: PanGestureHandlerGestureEvent) => void
+    isSectionHeader?: (itemToCheck: any) => boolean
+    animationConfig: Partial<Animated.SpringConfig>
+    activationDistance?: number
+    debug?: boolean
+    layoutInvalidationKey?: string
+    onScrollOffsetChange?: (scrollOffset: number) => void
+    onPlaceholderIndexChange?: (placeholderIndex: number) => void
+    dragItemOverflow?: boolean
   } & Partial<DefaultProps>
->;
+>
 
 type State = {
-  activeKey: string | null;
-  hoverComponent: React.ReactNode | null;
-};
+  activeKey: string | null
+  hoverComponent: React.ReactNode | null
+}
 
 type CellData = {
-  size: Animated.Value<number>;
-  offset: Animated.Value<number>;
+  size: Animated.Value<number>
+  offset: Animated.Value<number>
   measurements: {
-    size: number;
-    offset: number;
-  };
-  style: Animated.AnimateProps<ViewStyle, {}>;
-  currentIndex: Animated.Value<number>;
-  onLayout: () => void;
-  onUnmount: () => void;
-};
+    size: number
+    offset: number
+  }
+  style: Animated.AnimateProps<ViewStyle, {}>
+  currentIndex: Animated.Value<number>
+  onLayout: () => void
+  onUnmount: () => void
+}
 
 // Run callback on next paint:
 // https://stackoverflow.com/questions/26556436/react-after-render-code
 function onNextFrame(callback: () => void) {
   setTimeout(function() {
-    requestAnimationFrame(callback);
-  });
+    requestAnimationFrame(callback)
+  })
 }
 
 class DraggableSectionList<T> extends React.Component<Props<T>, State> {
-  headersAndData: any[] = [];
+  headersAndData: any[] = []
 
   state: State = {
     activeKey: null,
-    hoverComponent: null
-  };
+    hoverComponent: null,
+  }
 
-  containerRef = React.createRef<Animated.View>();
-  SectionListRef = React.createRef<AnimatedSectionListType<T>>();
-  panGestureHandlerRef = React.createRef<PanGestureHandler>();
+  containerRef = React.createRef<Animated.View>()
+  SectionListRef = React.createRef<AnimatedSectionListType<T>>()
+  panGestureHandlerRef = React.createRef<PanGestureHandler>()
 
-  containerSize = new Value<number>(0);
+  containerSize = new Value<number>(0)
 
-  activationDistance = new Value<number>(0);
-  touchAbsolute = new Value<number>(0);
-  touchCellOffset = new Value<number>(0);
-  panGestureState = new Value(GestureState.UNDETERMINED);
+  activationDistance = new Value<number>(0)
+  touchAbsolute = new Value<number>(0)
+  touchCellOffset = new Value<number>(0)
+  panGestureState = new Value(GestureState.UNDETERMINED)
 
   isPressedIn = {
     native: new Value<number>(0),
-    js: false
-  };
+    js: false,
+  }
 
-  hasMoved = new Value(0);
-  disabled = new Value(0);
+  hasMoved = new Value(0)
+  disabled = new Value(0)
 
-  activeIndex = new Value<number>(-1);
-  isHovering = greaterThan(this.activeIndex, -1);
+  activeIndex = new Value<number>(-1)
+  isHovering = greaterThan(this.activeIndex, -1)
 
-  spacerIndex = new Value<number>(-1);
-  activeCellSize = new Value<number>(0);
+  spacerIndex = new Value<number>(-1)
+  activeCellSize = new Value<number>(0)
 
-  scrollOffset = new Value<number>(0);
-  scrollViewSize = new Value<number>(0);
-  isScrolledUp = lessOrEq(sub(this.scrollOffset, scrollPositionTolerance), 0);
+  scrollOffset = new Value<number>(0)
+  scrollViewSize = new Value<number>(0)
+  isScrolledUp = lessOrEq(sub(this.scrollOffset, scrollPositionTolerance), 0)
   isScrolledDown = greaterOrEq(
     add(this.scrollOffset, this.containerSize, scrollPositionTolerance),
     this.scrollViewSize
-  );
+  )
 
-  hoverAnimUnconstrained = sub(this.touchAbsolute, this.touchCellOffset);
+  hoverAnimUnconstrained = sub(this.touchAbsolute, this.touchCellOffset)
   hoverAnimConstrained = min(
     sub(this.containerSize, this.activeCellSize),
     max(0, this.hoverAnimUnconstrained)
-  );
+  )
 
   hoverAnim = this.props.dragItemOverflow
     ? this.hoverAnimUnconstrained
-    : this.hoverAnimConstrained;
-  hoverMid = add(this.hoverAnim, divide(this.activeCellSize, 2));
-  hoverOffset = add(this.hoverAnim, this.scrollOffset);
+    : this.hoverAnimConstrained
+  hoverMid = add(this.hoverAnim, divide(this.activeCellSize, 2))
+  hoverOffset = add(this.hoverAnim, this.scrollOffset)
 
-  placeholderOffset = new Value(0);
-  placeholderPos = sub(this.placeholderOffset, this.scrollOffset);
+  placeholderOffset = new Value(0)
+  placeholderPos = sub(this.placeholderOffset, this.scrollOffset)
 
-  hoverTo = new Value(0);
-  hoverClock = new Clock();
+  hoverTo = new Value(0)
+  hoverClock = new Clock()
   hoverAnimState = {
     finished: new Value(0),
     velocity: new Value(0),
     position: new Value(0),
-    time: new Value(0)
-  };
+    time: new Value(0),
+  }
 
   hoverAnimConfig = {
     ...defaultAnimationConfig,
     ...this.props.animationConfig,
-    toValue: this.hoverTo
-  };
+    toValue: this.hoverTo,
+  }
 
-  distToTopEdge = max(0, this.hoverAnim);
+  distToTopEdge = max(0, this.hoverAnim)
   distToBottomEdge = max(
     0,
     sub(this.containerSize, add(this.hoverAnim, this.activeCellSize))
-  );
+  )
 
   cellAnim = new Map<
     string,
     {
-      config: Animated.SpringConfig;
-      state: Animated.SpringState;
-      clock: Animated.Clock;
+      config: Animated.SpringConfig
+      state: Animated.SpringState
+      clock: Animated.Clock
     }
-  >();
-  cellData = new Map<string, CellData>();
-  cellRefs = new Map<string, React.RefObject<Animated.View>>();
+  >()
+  cellData = new Map<string, CellData>()
+  cellRefs = new Map<string, React.RefObject<Animated.View>>()
 
-  moveEndParams = [this.activeIndex, this.spacerIndex];
+  moveEndParams = [this.activeIndex, this.spacerIndex]
 
   resetHoverSpring = [
     set(this.hoverAnimState.time, 0),
@@ -253,260 +254,294 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     set(this.touchCellOffset, 0),
     set(this.hoverAnimState.finished, 0),
     set(this.hoverAnimState.velocity, 0),
-    set(this.hasMoved, 0)
-  ];
+    set(this.hasMoved, 0),
+  ]
 
-  keyToIndex = new Map<string, number>();
+  keyToIndex = new Map<string, number>()
 
   /** Whether we've sent an incomplete call to the SectionList to do a scroll */
   isAutoscrolling = {
     native: new Value<number>(0),
-    js: false
-  };
+    js: false,
+  }
 
-  queue: (() => void | Promise<void>)[] = [];
+  queue: (() => void | Promise<void>)[] = []
 
   static getDerivedStateFromProps(props: Props<any>) {
     return {
-      extraData: props.extraData
-    };
+      extraData: props.extraData,
+    }
   }
 
-  static defaultProps = defaultProps;
+  static defaultProps = defaultProps
 
   constructor(props: Props<T>) {
-    super(props);
-    const { data, onRef } = props;
-    data.forEach(item => {
-      this.headersAndData.push(item.section);
-      item.data.forEach(dataItem => {
-        this.headersAndData.push(dataItem);
-      });
-    });
+    super(props)
+    const { data, onRef } = props
+    data.forEach((item) => {
+      this.headersAndData.push(item.section)
+      item.data.forEach((dataItem) => {
+        this.headersAndData.push(dataItem)
+      })
+    })
     this.headersAndData.forEach((dataOrHeader, index) => {
-      const key = this.keyExtractor(dataOrHeader, index);
-      this.keyToIndex.set(key, index);
-    });
-    onRef && onRef(this.SectionListRef);
+      const key = this.keyExtractor(dataOrHeader, index)
+      this.keyToIndex.set(key, index)
+    })
+    onRef && onRef(this.SectionListRef)
   }
 
   dataKeysHaveChanged = (a: sectionValue[], b: sectionValue[]) => {
     const lengthOfSectionsChanged =
-      Object.keys(a).length !== Object.keys(b).length;
-    if (lengthOfSectionsChanged) return true;
-    let AheadersAndData: any[] = [];
-    let BheadersAndData: any[] = [];
+      Object.keys(a).length !== Object.keys(b).length
+    if (lengthOfSectionsChanged) return true
+    let AheadersAndData: any[] = []
+    let BheadersAndData: any[] = []
 
-    a.forEach(item => {
-      AheadersAndData = [...AheadersAndData, item.section];
-      item.data.forEach(dataItem => {
-        AheadersAndData = [...AheadersAndData, dataItem];
-      });
-    });
+    a.forEach((item) => {
+      AheadersAndData = [...AheadersAndData, item.section]
+      item.data.forEach((dataItem) => {
+        AheadersAndData = [...AheadersAndData, dataItem]
+      })
+    })
     const aKeys = AheadersAndData.map((dataOrHeader, index) =>
       this.keyExtractor(dataOrHeader, index)
-    );
+    )
 
-    b.forEach(item => {
-      BheadersAndData = [...BheadersAndData, item.section];
-      item.data.forEach(dataItem => {
-        BheadersAndData = [...BheadersAndData, dataItem];
-      });
-    });
+    b.forEach((item) => {
+      BheadersAndData = [...BheadersAndData, item.section]
+      item.data.forEach((dataItem) => {
+        BheadersAndData = [...BheadersAndData, dataItem]
+      })
+    })
     const bKeys = BheadersAndData.map((dataOrHeader, index) =>
       this.keyExtractor(dataOrHeader, index)
-    );
+    )
 
-    const sameKeys = aKeys.every(k => bKeys.includes(k));
+    const sameKeys = aKeys.every((k) => bKeys.includes(k))
     console.log(`same
-    key? ${sameKeys}`);
-    return sameKeys;
-  };
+    key? ${sameKeys}`)
+    return sameKeys
+  }
 
   componentDidUpdate = (prevProps: Props<T>, prevState: State) => {
-    console.log(this.keyToIndex);
+    const firstStart = Date.now()
+
     const layoutInvalidationKeyHasChanged =
-      prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey;
-    const hashCurr = hash(decycle(this.props.data));
-    const hashPrev = hash(decycle(prevProps.data));
-    const dataHasChanged = hashCurr !== hashPrev;
+      prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey
+    // const hashCurr = hash(decycle(this.props.data))
+    // const hashPrev = hash(decycle(prevProps.data))
+
+    // const dataHasChanged = hashCurr !== hashPrev
+
+    const dataHasChanged = !isEqual(
+      decycle(prevProps.data),
+      decycle(this.props.data)
+    )
+
+    const firstEnd = Date.now()
+    console.log(`first ${firstEnd - firstStart}`)
+
+    const secondStart = Date.now()
+
     if (layoutInvalidationKeyHasChanged || dataHasChanged) {
-      this.headersAndData = [];
-      this.props.data.forEach(item => {
-        this.headersAndData.push(item.section);
-        item.data.forEach(dataItem => {
-          this.headersAndData.push(dataItem);
-        });
-      });
-      // this.keyToIndex.clear()
-      this.keyToIndex.clear();
+      const thirdStart = Date.now()
+
+      this.headersAndData = []
+      this.props.data.forEach((item) => {
+        this.headersAndData.push(item.section)
+        item.data.forEach((dataItem) => {
+          this.headersAndData.push(dataItem)
+        })
+      })
+
+      const thirdEnd = Date.now()
+      console.log(`third: ${thirdEnd - thirdStart}`)
+
+      const fourthStart = Date.now()
+
+      this.keyToIndex.clear()
       this.headersAndData.forEach((dataOrHeader, index) => {
-        const key = this.keyExtractor(dataOrHeader, index);
-        this.keyToIndex.set(key, index);
-      });
+        const key = this.keyExtractor(dataOrHeader, index)
+        this.keyToIndex.set(key, index)
+      })
+
+      const fourthEnd = Date.now()
+      console.log(`fourth: ${fourthEnd - fourthStart}`)
+
+      const fifthStart = Date.now()
+
       // Remeasure on next paint
-      this.updateCellData();
-      onNextFrame(this.flushQueue);
+      this.updateCellData()
+      onNextFrame(this.flushQueue)
+
+      const fifthEnd = Date.now()
+      console.log(`fifth: ${fifthEnd - fifthStart}`)
+
+      const sixthStart = Date.now()
       if (
         layoutInvalidationKeyHasChanged ||
-        dataHasChanged
-        // this.dataKeysHaveChanged(prevProps.data, this.props.data)
+        this.dataKeysHaveChanged(prevProps.data, this.props.data)
       ) {
-        this.queue.push(() => this.measureAll(this.props.data));
+        this.queue.push(() => this.measureAll(this.props.data))
       }
+
+      const sixthEnd = Date.now()
+      console.log(`sixth: ${sixthEnd - sixthStart}`)
     }
+
+    const secondEnd = Date.now()
+    console.log(`second: ${secondEnd - secondStart}`)
 
     if (!prevState.activeKey && this.state.activeKey) {
-      const index = this.keyToIndex.get(this.state.activeKey);
+      const index = this.keyToIndex.get(this.state.activeKey)
       if (index !== undefined) {
-        console.log(10);
-        this.spacerIndex.setValue(index);
-        this.activeIndex.setValue(index);
-        this.touchCellOffset.setValue(0);
-        this.isPressedIn.native.setValue(1);
+        this.spacerIndex.setValue(index)
+        this.activeIndex.setValue(index)
+        this.touchCellOffset.setValue(0)
+        this.isPressedIn.native.setValue(1)
       }
-      const cellData = this.cellData.get(this.state.activeKey);
+      const cellData = this.cellData.get(this.state.activeKey)
       if (cellData) {
-        this.touchAbsolute.setValue(sub(cellData.offset, this.scrollOffset));
-        this.activeCellSize.setValue(cellData.measurements.size);
+        this.touchAbsolute.setValue(sub(cellData.offset, this.scrollOffset))
+        this.activeCellSize.setValue(cellData.measurements.size)
       }
     }
-  };
+  }
 
   flushQueue = async () => {
-    this.queue.forEach(fn => fn());
-    this.queue = [];
-  };
+    this.queue.forEach((fn) => fn())
+    this.queue = []
+  }
 
   resetHoverState = () => {
-    this.activeIndex.setValue(-1);
-    this.spacerIndex.setValue(-1);
-    this.disabled.setValue(0);
+    this.activeIndex.setValue(-1)
+    this.spacerIndex.setValue(-1)
+    this.disabled.setValue(0)
     if (this.state.hoverComponent !== null || this.state.activeKey !== null) {
       this.setState({
         hoverComponent: null,
-        activeKey: null
-      });
+        activeKey: null,
+      })
     }
-  };
+  }
 
   drag = (hoverComponent: React.ReactNode, activeKey: string) => {
     if (this.state.hoverComponent) {
       // We can't drag more than one row at a time
       // TODO: Put action on queue?
-      if (this.props.debug) console.log("## Can't set multiple active items");
+      if (this.props.debug) console.log("## Can't set multiple active items")
     } else {
-      this.isPressedIn.js = true;
+      this.isPressedIn.js = true
 
       this.setState(
         {
           activeKey,
-          hoverComponent
+          hoverComponent,
         },
         () => {
-          const index = this.keyToIndex.get(activeKey);
-          const { onDragBegin } = this.props;
+          const index = this.keyToIndex.get(activeKey)
+          const { onDragBegin } = this.props
           if (index !== undefined && onDragBegin) {
-            onDragBegin(index);
+            onDragBegin(index)
           }
         }
-      );
+      )
     }
-  };
+  }
 
   onRelease = ([index]: readonly number[]) => {
-    const { onRelease } = this.props;
-    this.isPressedIn.js = false;
-    onRelease && onRelease(index);
-  };
+    const { onRelease } = this.props
+    this.isPressedIn.js = false
+    onRelease && onRelease(index)
+  }
 
   onDragEnd = ([from, to]: readonly number[]) => {
-    const { onDragEnd, isSectionHeader } = this.props;
+    this.resetHoverState()
+    const { onDragEnd, isSectionHeader } = this.props
 
-    let newData = [...this.headersAndData];
+    let newData = [...this.headersAndData]
 
     if (from !== to) {
-      newData.splice(from, 1);
-      newData.splice(to, 0, this.headersAndData[from]);
+      newData.splice(from, 1)
+      newData.splice(to, 0, this.headersAndData[from])
     }
 
-    const changedObject: any = {};
-    const highetThanFirstSection: any[] = [];
+    const changedObject: any = {}
+    const highetThanFirstSection: any[] = []
 
     if (isSectionHeader && onDragEnd) {
-      let lastSection: any;
+      let lastSection: any
 
-      newData.forEach(headerOrData => {
+      newData.forEach((headerOrData) => {
         if (isSectionHeader(headerOrData)) {
-          lastSection = headerOrData;
-          return;
+          lastSection = headerOrData
+          return
         }
         if (lastSection) {
-          if (!changedObject[lastSection]) changedObject[lastSection] = [];
-          changedObject[lastSection].push(headerOrData);
+          if (!changedObject[lastSection]) changedObject[lastSection] = []
+          changedObject[lastSection].push(headerOrData)
         } else {
-          highetThanFirstSection.push(lastSection);
+          highetThanFirstSection.push(lastSection)
         }
-      });
-      onDragEnd({ from, to, data: changedObject });
+      })
+      onDragEnd({ from, to, data: changedObject })
     }
 
-    const lo = Math.min(from, to) - 1;
-    const hi = Math.max(from, to) + 1;
+    const lo = Math.min(from, to) - 1
+    const hi = Math.max(from, to) + 1
     for (let i = lo; i < hi; i++) {
       this.queue.push(() => {
-        const item = this.headersAndData[i];
-        if (!item) return;
-        const key = this.keyExtractor(item, i);
-        return this.measureCell(key);
-      });
+        const item = this.headersAndData[i]
+        if (!item) return
+        const key = this.keyExtractor(item, i)
+        return this.measureCell(key)
+      })
     }
-
-    this.resetHoverState();
-  };
+  }
 
   updateCellData = () => {
     return this.headersAndData.forEach((dataOrHeader, index) => {
-      const key = this.keyExtractor(dataOrHeader, index);
-      const cell = this.cellData.get(key);
-      if (cell) cell.currentIndex.setValue(index);
-    });
-  };
+      const key = this.keyExtractor(dataOrHeader, index)
+      const cell = this.cellData.get(key)
+      if (cell) cell.currentIndex.setValue(index)
+    })
+  }
 
   setCellData = (key: string, index: number) => {
-    const clock = new Clock();
-    const currentIndex = new Value(index);
+    const clock = new Clock()
+    const currentIndex = new Value(index)
 
     const config = {
       ...this.hoverAnimConfig,
-      toValue: new Value(0)
-    };
+      toValue: new Value(0),
+    }
 
     const state = {
       position: new Value(0),
       velocity: new Value(0),
       time: new Value(0),
-      finished: new Value(0)
-    };
+      finished: new Value(0),
+    }
 
-    this.cellAnim.set(key, { clock, state, config });
+    this.cellAnim.set(key, { clock, state, config })
 
-    const initialized = new Value(0);
-    const size = new Value<number>(0);
-    const offset = new Value<number>(0);
-    const isAfterActive = new Value(0);
-    const translate = new Value(0);
+    const initialized = new Value(0)
+    const size = new Value<number>(0)
+    const offset = new Value<number>(0)
+    const isAfterActive = new Value(0)
+    const translate = new Value(0)
 
     const runSrping = cond(
       clockRunning(clock),
       springFill(clock, state, config)
-    );
-    const onHasMoved = startClock(clock);
-    const onChangeSpacerIndex = cond(clockRunning(clock), stopClock(clock));
-    const onFinished = stopClock(clock);
+    )
+    const onHasMoved = startClock(clock)
+    const onChangeSpacerIndex = cond(clockRunning(clock), stopClock(clock))
+    const onFinished = stopClock(clock)
 
-    const prevTrans = new Value(0);
-    const prevSpacerIndex = new Value(-1);
+    const prevTrans = new Value(0)
+    const prevSpacerIndex = new Value(-1)
 
     const anim = setupCell(
       currentIndex,
@@ -535,15 +570,15 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
       onFinished,
       this.isPressedIn.native,
       this.placeholderOffset
-    );
+    )
 
     const transform = this.props.horizontal
       ? [{ translateX: anim }]
-      : [{ translateY: anim }];
+      : [{ translateY: anim }]
 
     const style = {
-      transform
-    };
+      transform,
+    }
 
     const cellData = {
       initialized,
@@ -552,138 +587,136 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
       offset,
       style,
       onLayout: () => {
-        if (this.state.activeKey !== key) this.measureCell(key);
+        if (this.state.activeKey !== key) this.measureCell(key)
       },
       onUnmount: () => initialized.setValue(0),
       measurements: {
         size: 0,
-        offset: 0
-      }
-    };
-    this.cellData.set(key, cellData);
-  };
+        offset: 0,
+      },
+    }
+    this.cellData.set(key, cellData)
+  }
 
   measureAll = (sections: sectionValue[]) => {
     this.headersAndData.forEach((dataOrHeader: any, index: number) => {
-      const key = this.keyExtractor(dataOrHeader, index);
-      this.measureCell(key);
-    });
-  };
+      const key = this.keyExtractor(dataOrHeader, index)
+      this.measureCell(key)
+    })
+  }
 
   measureCell = (key: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const { horizontal } = this.props;
+      const { horizontal } = this.props
 
       const onSuccess = (x: number, y: number, w: number, h: number) => {
-        const { activeKey } = this.state;
-        const isHovering = activeKey !== null;
-        const cellData = this.cellData.get(key);
-        const thisKeyIndex = this.keyToIndex.get(key);
+        const { activeKey } = this.state
+        const isHovering = activeKey !== null
+        const cellData = this.cellData.get(key)
+        const thisKeyIndex = this.keyToIndex.get(key)
         const activeKeyIndex = activeKey
           ? this.keyToIndex.get(activeKey)
-          : undefined;
-        const baseOffset = horizontal ? x : y;
-        let extraOffset = 0;
+          : undefined
+        const baseOffset = horizontal ? x : y
+        let extraOffset = 0
         if (
           thisKeyIndex !== undefined &&
           activeKeyIndex !== undefined &&
           activeKey
         ) {
-          const isAfterActive = thisKeyIndex > activeKeyIndex;
-          const activeCellData = this.cellData.get(activeKey);
+          const isAfterActive = thisKeyIndex > activeKeyIndex
+          const activeCellData = this.cellData.get(activeKey)
           if (isHovering && isAfterActive && activeCellData) {
-            extraOffset = activeCellData.measurements.size;
+            extraOffset = activeCellData.measurements.size
           }
         }
 
-        const size = horizontal ? w : h;
-        const offset = baseOffset + extraOffset;
+        const size = horizontal ? w : h
+        const offset = baseOffset + extraOffset
 
         if (this.props.debug)
           console.log(
             `measure key ${key}: wdith ${w} height ${h} x ${x} y ${y} size ${size} offset ${offset}`
-          );
+          )
 
         if (cellData) {
-          cellData.size.setValue(size);
-          cellData.offset.setValue(offset);
-          cellData.measurements.size = size;
-          cellData.measurements.offset = offset;
+          cellData.size.setValue(size)
+          cellData.offset.setValue(offset)
+          cellData.measurements.size = size
+          cellData.measurements.offset = offset
         }
 
         // remeasure on next layout if hovering
-        if (isHovering) this.queue.push(() => this.measureCell(key));
-        resolve();
-      };
+        if (isHovering) this.queue.push(() => this.measureCell(key))
+        resolve()
+      }
 
       const onFail = () => {
-        if (this.props.debug) console.log("## measureLayout fail!", key);
-      };
+        if (this.props.debug) console.log('## measureLayout fail!', key)
+      }
 
-      const ref = this.cellRefs.get(key);
-      const viewNode = ref && ref.current && ref.current.getNode();
+      const ref = this.cellRefs.get(key)
+      const viewNode = ref && ref.current && ref.current.getNode()
       const SectionListNode =
-        this.SectionListRef.current && this.SectionListRef.current.getNode();
+        this.SectionListRef.current && this.SectionListRef.current.getNode()
 
       if (viewNode && SectionListNode) {
-        const nodeHandle = findNodeHandle(SectionListNode);
-        if (nodeHandle) viewNode.measureLayout(nodeHandle, onSuccess, onFail);
+        const nodeHandle = findNodeHandle(SectionListNode)
+        if (nodeHandle) viewNode.measureLayout(nodeHandle, onSuccess, onFail)
       } else {
         let reason = !ref
-          ? "no ref"
+          ? 'no ref'
           : !SectionListNode
-          ? "no SectionList node"
-          : "invalid ref";
+          ? 'no SectionList node'
+          : 'invalid ref'
         if (this.props.debug)
-          console.log(`## can't measure ${key} reason: ${reason}`);
-        this.queue.push(() => this.measureCell(key));
-        return resolve();
+          console.log(`## can't measure ${key} reason: ${reason}`)
+        this.queue.push(() => this.measureCell(key))
+        return resolve()
       }
-    });
-  };
+    })
+  }
 
   keyExtractor = (item: RenderItemParams<T>, index: number) => {
-    if (this.props.keyExtractor) return this.props.keyExtractor(item, index);
+    if (this.props.keyExtractor) return this.props.keyExtractor(item, index)
     else
-      throw new Error(
-        "You must provide a keyExtractor to DraggableSectionList"
-      );
-  };
+      throw new Error('You must provide a keyExtractor to DraggableSectionList')
+  }
 
   onContainerLayout = () => {
-    const { horizontal } = this.props;
-    const containerRef = this.containerRef.current;
+    const { horizontal } = this.props
+    const containerRef = this.containerRef.current
     if (containerRef) {
       containerRef.getNode().measure((x, y, w, h) => {
-        this.containerSize.setValue(horizontal ? w : h);
-      });
+        this.containerSize.setValue(horizontal ? w : h)
+      })
     }
-  };
+  }
 
   onListContentSizeChange = (w: number, h: number) => {
-    this.scrollViewSize.setValue(this.props.horizontal ? w : h);
-    if (this.props.onContentSizeChange) this.props.onContentSizeChange(w, h);
-  };
+    this.scrollViewSize.setValue(this.props.horizontal ? w : h)
+    if (this.props.onContentSizeChange) this.props.onContentSizeChange(w, h)
+  }
 
-  targetScrollOffset = new Value<number>(0);
-  resolveAutoscroll?: (scrollParams: readonly number[]) => void;
+  targetScrollOffset = new Value<number>(0)
+  resolveAutoscroll?: (scrollParams: readonly number[]) => void
 
   onAutoscrollComplete = (params: readonly number[]) => {
-    this.isAutoscrolling.js = false;
-    if (this.resolveAutoscroll) this.resolveAutoscroll(params);
-  };
+    this.isAutoscrolling.js = false
+    if (this.resolveAutoscroll) this.resolveAutoscroll(params)
+  }
 
   scrollToAsync = (offset: number): Promise<readonly number[]> =>
     new Promise((resolve, reject) => {
-      this.resolveAutoscroll = resolve;
-      this.targetScrollOffset.setValue(offset);
-      this.isAutoscrolling.native.setValue(1);
-      this.isAutoscrolling.js = true;
-      const SectionListRef = this.SectionListRef.current;
+      this.resolveAutoscroll = resolve
+      this.targetScrollOffset.setValue(offset)
+      this.isAutoscrolling.native.setValue(1)
+      this.isAutoscrolling.js = true
+      const SectionListRef = this.SectionListRef.current
       SectionListRef?.getNode()._wrapperListRef._listRef.scrollToOffset({
-        offset: offset
-      });
-    });
+        offset: offset,
+      })
+    })
 
   getScrollTargetOffset = (
     distFromTop: number,
@@ -692,88 +725,88 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     isScrolledUp: boolean,
     isScrolledDown: boolean
   ) => {
-    if (this.isAutoscrolling.js) return -1;
-    const { autoscrollThreshold, autoscrollSpeed } = this.props;
-    const scrollUp = distFromTop < autoscrollThreshold!;
-    const scrollDown = distFromBottom < autoscrollThreshold!;
+    if (this.isAutoscrolling.js) return -1
+    const { autoscrollThreshold, autoscrollSpeed } = this.props
+    const scrollUp = distFromTop < autoscrollThreshold!
+    const scrollDown = distFromBottom < autoscrollThreshold!
     if (
       !(scrollUp || scrollDown) ||
       (scrollUp && isScrolledUp) ||
       (scrollDown && isScrolledDown)
     )
-      return -1;
-    const distFromEdge = scrollUp ? distFromTop : distFromBottom;
-    const speedPct = 1 - distFromEdge / autoscrollThreshold!;
+      return -1
+    const distFromEdge = scrollUp ? distFromTop : distFromBottom
+    const speedPct = 1 - distFromEdge / autoscrollThreshold!
     // Android scroll speed seems much faster than ios
     const speed =
-      Platform.OS === "ios" ? autoscrollSpeed! : autoscrollSpeed! / 10;
-    const offset = speedPct * speed;
+      Platform.OS === 'ios' ? autoscrollSpeed! : autoscrollSpeed! / 10
+    const offset = speedPct * speed
     const targetOffset = scrollUp
       ? Math.max(0, scrollOffset - offset)
-      : scrollOffset + offset;
-    return targetOffset;
-  };
+      : scrollOffset + offset
+    return targetOffset
+  }
 
   /** Ensure that only 1 call to autoscroll is active at a time */
-  autoscrollLooping = false;
+  autoscrollLooping = false
   autoscroll = async (params: readonly number[]) => {
     if (this.autoscrollLooping) {
-      return;
+      return
     }
-    this.autoscrollLooping = true;
+    this.autoscrollLooping = true
     try {
-      let shouldScroll = true;
-      let curParams = params;
+      let shouldScroll = true
+      let curParams = params
       while (shouldScroll) {
         const [
           distFromTop,
           distFromBottom,
           scrollOffset,
           isScrolledUp,
-          isScrolledDown
-        ] = curParams;
+          isScrolledDown,
+        ] = curParams
         const targetOffset = this.getScrollTargetOffset(
           distFromTop,
           distFromBottom,
           scrollOffset,
           !!isScrolledUp,
           !!isScrolledDown
-        );
+        )
         const scrollingUpAtTop = !!(
           isScrolledUp && targetOffset <= scrollOffset
-        );
+        )
         const scrollingDownAtBottom = !!(
           isScrolledDown && targetOffset >= scrollOffset
-        );
+        )
         shouldScroll =
           targetOffset >= 0 &&
           this.isPressedIn.js &&
           !scrollingUpAtTop &&
-          !scrollingDownAtBottom;
+          !scrollingDownAtBottom
 
         if (shouldScroll) {
-          curParams = await this.scrollToAsync(targetOffset);
+          curParams = await this.scrollToAsync(targetOffset)
         }
       }
     } finally {
-      this.autoscrollLooping = false;
+      this.autoscrollLooping = false
     }
-  };
+  }
 
-  isAtTopEdge = lessOrEq(this.distToTopEdge, this.props.autoscrollThreshold!);
+  isAtTopEdge = lessOrEq(this.distToTopEdge, this.props.autoscrollThreshold!)
   isAtBottomEdge = lessOrEq(
     this.distToBottomEdge,
     this.props.autoscrollThreshold!
-  );
-  isAtEdge = or(this.isAtBottomEdge, this.isAtTopEdge);
+  )
+  isAtEdge = or(this.isAtBottomEdge, this.isAtTopEdge)
 
   autoscrollParams = [
     this.distToTopEdge,
     this.distToBottomEdge,
     this.scrollOffset,
     this.isScrolledUp,
-    this.isScrolledDown
-  ];
+    this.isScrolledDown,
+  ]
 
   checkAutoscroll = cond(
     and(
@@ -784,7 +817,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
       not(this.isAutoscrolling.native)
     ),
     call(this.autoscrollParams, this.autoscroll)
-  );
+  )
 
   onScroll = event([
     {
@@ -818,12 +851,12 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
             [
               // Finish scrolling
               set(this.isAutoscrolling.native, 0),
-              call(this.autoscrollParams, this.onAutoscrollComplete)
+              call(this.autoscrollParams, this.onAutoscrollComplete),
             ]
-          )
-        ])
-    }
-  ]);
+          ),
+        ]),
+    },
+  ])
 
   onGestureRelease = [
     cond(
@@ -833,26 +866,26 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
         cond(defined(this.hoverClock), [
           cond(clockRunning(this.hoverClock), stopClock(this.hoverClock)),
           set(this.hoverAnimState.position, this.hoverAnim),
-          startClock(this.hoverClock)
+          startClock(this.hoverClock),
         ]),
         [
           call([this.activeIndex], this.onRelease),
           cond(
             not(this.hasMoved),
             call([this.activeIndex], this.resetHoverState)
-          )
-        ]
+          ),
+        ],
       ],
       call([this.activeIndex], this.resetHoverState)
-    )
-  ];
+    ),
+  ]
 
   onPanStateChange = event([
     {
       nativeEvent: ({
         state,
         x,
-        y
+        y,
       }: GestureHandlerGestureEventNativeEvent & PanGestureHandlerEventExtra) =>
         cond(and(neq(state, this.panGestureState), not(this.disabled)), [
           set(this.panGestureState, state),
@@ -870,10 +903,10 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
               eq(state, GestureState.FAILED)
             ),
             this.onGestureRelease
-          )
-        ])
-    }
-  ]);
+          ),
+        ]),
+    },
+  ])
 
   onPanGestureEvent = event([
     {
@@ -889,26 +922,26 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
             set(
               this.touchAbsolute,
               add(this.props.horizontal ? x : y, this.activationDistance)
-            )
+            ),
           ]
-        )
-    }
-  ]);
+        ),
+    },
+  ])
 
   hoverComponentTranslate = cond(
     clockRunning(this.hoverClock),
     this.hoverAnimState.position,
     this.hoverAnim
-  );
+  )
 
   hoverComponentOpacity = and(
     this.isHovering,
     neq(this.panGestureState, GestureState.CANCELLED)
-  );
+  )
 
   renderHoverComponent = () => {
-    const { hoverComponent } = this.state;
-    const { horizontal } = this.props;
+    const { hoverComponent } = this.state
+    const { horizontal } = this.props
 
     return (
       <Animated.View
@@ -920,48 +953,48 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
             opacity: this.hoverComponentOpacity,
             transform: [
               {
-                [`translate${horizontal ? "X" : "Y"}`]: this
-                  .hoverComponentTranslate
-              }
+                [`translate${horizontal ? 'X' : 'Y'}`]: this
+                  .hoverComponentTranslate,
+              },
               // We need the cast because the transform array usually accepts
               // only specific keys, and we dynamically generate the key
               // above
-            ] as Animated.AnimatedTransform
-          }
+            ] as Animated.AnimatedTransform,
+          },
         ]}
       >
         {hoverComponent}
       </Animated.View>
-    );
-  };
+    )
+  }
 
   renderSectionHeader = (info: SectionListData<T>) => {
-    const index = this.headersAndData.indexOf(info.section.section);
-    const { activeKey } = this.state;
-    const key = this.keyExtractor(info.section.section, index);
-    if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index);
-    if (!this.cellData.get(key)) this.setCellData(key, index);
-    let ref = this.cellRefs.get(key);
+    const index = this.headersAndData.indexOf(info.section.section)
+    const { activeKey } = this.state
+    const key = this.keyExtractor(info.section.section, index)
+    if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index)
+    if (!this.cellData.get(key)) this.setCellData(key, index)
+    let ref = this.cellRefs.get(key)
     if (!ref) {
-      ref = React.createRef();
-      this.cellRefs.set(key, ref);
+      ref = React.createRef()
+      this.cellRefs.set(key, ref)
     }
     const { onUnmount } = this.cellData.get(key) || {
       onUnmount: () => {
-        if (this.props.debug) console.log("## error, no cellData");
-      }
-    };
-    const cellData = this.cellData.get(key);
-    if (!cellData) return null;
-    const { horizontal } = this.props;
-    const isActiveCell = activeKey === key;
-    const { style, onLayout: onCellLayout } = cellData;
+        if (this.props.debug) console.log('## error, no cellData')
+      },
+    }
+    const cellData = this.cellData.get(key)
+    if (!cellData) return null
+    const { horizontal } = this.props
+    const isActiveCell = activeKey === key
+    const { style, onLayout: onCellLayout } = cellData
     return (
       <Animated.View style={style}>
         <Animated.View
-          pointerEvents={activeKey ? "none" : "auto"}
+          pointerEvents={activeKey ? 'none' : 'auto'}
           style={{
-            flexDirection: horizontal ? "row" : "column"
+            flexDirection: horizontal ? 'row' : 'column',
           }}
         >
           <Animated.View
@@ -981,36 +1014,36 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
           </Animated.View>
         </Animated.View>
       </Animated.View>
-    );
-  };
+    )
+  }
 
   renderItem = (item: RenderItemParams<T>) => {
-    const index = this.headersAndData.indexOf(item.item);
-    const key = this.keyExtractor(item.item, index);
-    const { activeKey } = this.state;
-    const { horizontal } = this.props;
-    if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index);
-    if (!this.cellData.get(key)) this.setCellData(key, index);
-    let ref = this.cellRefs.get(key);
+    const index = this.headersAndData.indexOf(item.item)
+    const key = this.keyExtractor(item.item, index)
+    const { activeKey } = this.state
+    const { horizontal } = this.props
+    if (index !== this.keyToIndex.get(key)) this.keyToIndex.set(key, index)
+    if (!this.cellData.get(key)) this.setCellData(key, index)
+    let ref = this.cellRefs.get(key)
     if (!ref) {
-      ref = React.createRef();
-      this.cellRefs.set(key, ref);
+      ref = React.createRef()
+      this.cellRefs.set(key, ref)
     }
     const { onUnmount } = this.cellData.get(key) || {
       onUnmount: () => {
-        if (this.props.debug) console.log("## error, no cellData");
-      }
-    };
-    const cellData = this.cellData.get(key);
-    if (!cellData) return null;
-    const { style, onLayout: onCellLayout } = cellData;
-    const isActiveCell = activeKey === key;
+        if (this.props.debug) console.log('## error, no cellData')
+      },
+    }
+    const cellData = this.cellData.get(key)
+    if (!cellData) return null
+    const { style, onLayout: onCellLayout } = cellData
+    const isActiveCell = activeKey === key
     return (
       <Animated.View style={style}>
         <Animated.View
-          pointerEvents={activeKey ? "none" : "auto"}
+          pointerEvents={activeKey ? 'none' : 'auto'}
           style={{
-            flexDirection: horizontal ? "row" : "column"
+            flexDirection: horizontal ? 'row' : 'column',
           }}
         >
           <Animated.View
@@ -1030,8 +1063,8 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
           </Animated.View>
         </Animated.View>
       </Animated.View>
-    );
-  };
+    )
+  }
 
   renderOnPlaceholderIndexChange = () => (
     <Animated.Code>
@@ -1042,51 +1075,54 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
             call([this.spacerIndex], ([spacerIndex]) =>
               this.props.onPlaceholderIndexChange!(spacerIndex)
             )
-          )
+          ),
         ])
       }
     </Animated.Code>
-  );
+  )
 
   renderPlaceholder = () => {
-    const { renderPlaceholder, horizontal } = this.props;
-    const { activeKey } = this.state;
-    if (!activeKey || !renderPlaceholder) return null;
-    const activeIndex = this.keyToIndex.get(activeKey);
-    if (activeIndex === undefined) return null;
-    const activeItem = this.props.data[activeIndex];
-    const translateKey = horizontal ? "translateX" : "translateY";
-    const sizeKey = horizontal ? "width" : "height";
+    const { renderPlaceholder, horizontal } = this.props
+    const { activeKey } = this.state
+    if (!activeKey || !renderPlaceholder) return null
+    const activeIndex = this.keyToIndex.get(activeKey)
+    if (activeIndex === undefined) return null
+    const activeItem = this.props.data[activeIndex]
+    const translateKey = horizontal ? 'translateX' : 'translateY'
+    const sizeKey = horizontal ? 'width' : 'height'
     const style = {
       ...StyleSheet.absoluteFillObject,
       [sizeKey]: this.activeCellSize,
       transform: [
-        { [translateKey]: this.placeholderPos }
-      ] as Animated.AnimatedTransform
-    };
+        { [translateKey]: this.placeholderPos },
+      ] as Animated.AnimatedTransform,
+    }
 
     return (
       <Animated.View style={style}>
         {renderPlaceholder({ item: activeItem, index: activeIndex })}
       </Animated.View>
-    );
-  };
+    )
+  }
 
   renderDebug() {
     return (
       <Animated.Code>
         {() =>
           block([
-            onChange(this.spacerIndex, debug("spacerIndex: ", this.spacerIndex))
+            onChange(
+              this.spacerIndex,
+              debug('spacerIndex: ', this.spacerIndex)
+            ),
           ])
         }
       </Animated.Code>
-    );
+    )
   }
 
   onContainerTouchEnd = () => {
-    this.isPressedIn.native.setValue(0);
-  };
+    this.isPressedIn.native.setValue(0)
+  }
 
   render() {
     const {
@@ -1097,16 +1133,16 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
       activationDistance,
       onScrollOffsetChange,
       renderPlaceholder,
-      onPlaceholderIndexChange
-    } = this.props;
+      onPlaceholderIndexChange,
+    } = this.props
 
-    const { hoverComponent } = this.state;
-    let dynamicProps = {};
+    const { hoverComponent } = this.state
+    let dynamicProps = {}
     if (activationDistance) {
-      const activeOffset = [-activationDistance, activationDistance];
+      const activeOffset = [-activationDistance, activationDistance]
       dynamicProps = horizontal
         ? { activeOffsetX: activeOffset }
-        : { activeOffsetY: activeOffset };
+        : { activeOffsetY: activeOffset }
     }
     return (
       <PanGestureHandler
@@ -1153,12 +1189,14 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
                     this.hoverAnimConfig
                   ),
                   cond(eq(this.hoverAnimState.finished, 1), [
+                    this.resetHoverSpring,
+                    set(this.hasMoved, 0),
                     stopClock(this.hoverClock),
                     call(this.moveEndParams, this.onDragEnd),
-                    this.resetHoverSpring,
-                    set(this.hasMoved, 0)
-                  ])
-                ])
+                    // this.resetHoverSpring,
+                    // set(this.hasMoved, 0),
+                  ]),
+                ]),
               ])
             }
           </Animated.Code>
@@ -1177,61 +1215,61 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
           {debug && this.renderDebug()}
         </Animated.View>
       </PanGestureHandler>
-    );
+    )
   }
 }
 
-export default DraggableSectionList;
+export default DraggableSectionList
 
 type RowSectionProps<T> = {
-  extraData?: any;
-  drag: (hoverComponent: React.ReactNode, itemKey: string) => void;
-  keyToIndex: Map<string, number>;
-  item: RenderItemParams<T>;
-  renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode;
-  itemKey: string;
-  onUnmount: () => void;
-  debug?: boolean;
-};
+  extraData?: any
+  drag: (hoverComponent: React.ReactNode, itemKey: string) => void
+  keyToIndex: Map<string, number>
+  item: RenderItemParams<T>
+  renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode
+  itemKey: string
+  onUnmount: () => void
+  debug?: boolean
+}
 
 type RowItemProps<T> = {
-  extraData?: any;
-  drag: (hoverComponent: React.ReactNode, itemKey: string) => void;
-  keyToIndex: Map<string, number>;
-  item: RenderItemParams<T>;
-  renderItem: (params: RenderItemParams<T>) => React.ReactNode;
-  itemKey: string;
-  onUnmount: () => void;
-  debug?: boolean;
-};
+  extraData?: any
+  drag: (hoverComponent: React.ReactNode, itemKey: string) => void
+  keyToIndex: Map<string, number>
+  item: RenderItemParams<T>
+  renderItem: (params: RenderItemParams<T>) => React.ReactNode
+  itemKey: string
+  onUnmount: () => void
+  debug?: boolean
+}
 
 class RowItem<T> extends React.PureComponent<RowItemProps<T>> {
   drag = () => {
-    const { drag, renderItem, item, keyToIndex, itemKey, debug } = this.props;
+    const { drag, renderItem, item, keyToIndex, itemKey, debug } = this.props
     const hoverComponent = renderItem({
       isActive: true,
       item,
       index: keyToIndex.get(itemKey),
       drag: () => {
         if (debug)
-          console.log("## attempt to call drag() on hovering component");
-      }
-    });
-    drag(hoverComponent, itemKey);
-  };
+          console.log('## attempt to call drag() on hovering component')
+      },
+    })
+    drag(hoverComponent, itemKey)
+  }
 
   componentWillUnmount() {
-    this.props.onUnmount();
+    this.props.onUnmount()
   }
 
   render() {
-    const { renderItem, item, keyToIndex, itemKey } = this.props;
+    const { renderItem, item, keyToIndex, itemKey } = this.props
     return renderItem({
       isActive: false,
       item,
       index: keyToIndex.get(itemKey),
-      drag: this.drag
-    });
+      drag: this.drag,
+    })
   }
 }
 
@@ -1243,47 +1281,47 @@ class RowSection<T> extends React.PureComponent<RowSectionProps<T>> {
       item,
       keyToIndex,
       itemKey,
-      debug
-    } = this.props;
+      debug,
+    } = this.props
     const hoverComponent = renderSectionHeader({
       isActive: true,
       item,
       index: keyToIndex.get(itemKey),
       drag: () => {
         if (debug)
-          console.log("## attempt to call drag() on hovering component");
-      }
-    });
-    drag(hoverComponent, itemKey);
-  };
+          console.log('## attempt to call drag() on hovering component')
+      },
+    })
+    drag(hoverComponent, itemKey)
+  }
 
   componentWillUnmount() {
-    this.props.onUnmount();
+    this.props.onUnmount()
   }
 
   render() {
-    const { renderSectionHeader, item, keyToIndex, itemKey } = this.props;
+    const { renderSectionHeader, item, keyToIndex, itemKey } = this.props
     return renderSectionHeader({
       isActive: false,
       item,
       index: keyToIndex.get(itemKey),
-      drag: this.drag
-    });
+      drag: this.drag,
+    })
   }
 }
 
 const styles = StyleSheet.create({
   flex: {
-    flex: 1
+    flex: 1,
   },
   hoverComponentVertical: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
-    right: 0
+    right: 0,
   },
   hoverComponentHorizontal: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
-    top: 0
-  }
-});
+    top: 0,
+  },
+})

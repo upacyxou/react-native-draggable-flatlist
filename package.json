@@ -1,17 +1,12 @@
 {
   "name": "@upacyxou/react-native-draggable-sectionlist",
-  "version": "0.0.9991",
+  "version": "0.0.9993",
   "description": "A drag-and-drop-enabled sectionlist component for React Native",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "pretty-quick --staged"
-    }
   },
   "repository": {
     "type": "git",
@@ -54,8 +49,10 @@
     "lib": "lib"
   },
   "dependencies": {
+    "@types/lodash.isequal": "^4.5.5",
     "@types/object-hash": "^1.3.4",
     "cycle": "^1.0.3",
+    "lodash.isequal": "^4.5.0",
     "object-hash": "^2.0.3"
   }
 }
