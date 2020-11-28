@@ -467,7 +467,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
       newData.splice(to, 0, this.headersAndData[from])
     }
 
-    const changedObject: any = {}
+    const changedObject: any[] = []
     const highetThanFirstSection: any[] = []
 
     if (isSectionHeader && onDragEnd) {
@@ -475,15 +475,10 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
       newData.forEach((headerOrData) => {
         if (isSectionHeader(headerOrData)) {
-          lastSection = headerOrData
+          changedObject.push({ section: headerOrData, data: [] })
           return
         }
-        if (lastSection) {
-          if (!changedObject[lastSection]) changedObject[lastSection] = []
-          changedObject[lastSection].push(headerOrData)
-        } else {
-          highetThanFirstSection.push(lastSection)
-        }
+        changedObject[changedObject.length - 1].data.push(headerOrData)
       })
       onDragEnd({ from, to, data: changedObject })
     }
