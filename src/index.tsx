@@ -86,6 +86,7 @@ type AnimatedSectionListType<T> = { getNode: () => typeof AnimatedSectionList }
 
 export type DragEndParams<T> = {
   data: T[]
+  dataArr: T[]
   from: number
   to: number
 }
@@ -292,6 +293,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
   }
 
   dataKeysHaveChanged = (a: sectionValue[], b: sectionValue[]) => {
+    return
     const lengthOfSectionsChanged =
       Object.keys(a).length !== Object.keys(b).length
     if (lengthOfSectionsChanged) return true
@@ -324,20 +326,25 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     return sameKeys
   }
 
+  lastKey = ''
+
   componentDidUpdate = (prevProps: Props<T>, prevState: State) => {
     const firstStart = Date.now()
 
     const layoutInvalidationKeyHasChanged =
-      prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey
+      prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey ||
+      this.lastKey !== this.props.layoutInvalidationKey
     // const hashCurr = hash(decycle(this.props.data))
     // const hashPrev = hash(decycle(prevProps.data))
 
     // const dataHasChanged = hashCurr !== hashPrev
 
-    const dataHasChanged = !isEqual(
-      decycle(prevProps.data),
-      decycle(this.props.data)
-    )
+    let dataHasChanged = false
+
+    if (!layoutInvalidationKeyHasChanged) {
+      dataHasChanged =
+        hash(decycle(prevProps.data)) !== hash(decycle(this.props.data))
+    }
 
     const firstEnd = Date.now()
     console.log(`first ${firstEnd - firstStart}`)
@@ -345,6 +352,9 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     const secondStart = Date.now()
 
     if (layoutInvalidationKeyHasChanged || dataHasChanged) {
+      if (this.props.layoutInvalidationKey) {
+        this.lastKey = this.props.layoutInvalidationKey
+      }
       const thirdStart = Date.now()
 
       this.headersAndData = []
@@ -480,7 +490,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
         }
         changedObject[changedObject.length - 1].data.push(headerOrData)
       })
-      onDragEnd({ from, to, data: changedObject })
+      onDragEnd({ from, to, data: changedObject, dataArr: newData })
     }
 
     const lo = Math.min(from, to) - 1
