@@ -473,14 +473,14 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     let newData = [...this.headersAndData]
 
     if (from !== to) {
-      newData.splice(from, 1)
-      newData.splice(to, 0, this.headersAndData[from])
+      this.headersAndData.splice(from, 1)
+      this.headersAndData.splice(to, 0, newData[from])
     }
 
     const changedObject: any[] = []
 
     if (isSectionHeader && onDragEnd) {
-      onDragEnd({ from, to, data: changedObject, dataArr: newData })
+      onDragEnd({ from, to, data: changedObject, dataArr: this.headersAndData })
     }
 
     const lo = Math.min(from, to) - 1
@@ -488,7 +488,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     for (let i = lo; i < hi; i++) {
       this.queue.push(() => {
         //         const item = this.headersAndData[i]
-        const item = newData[i]
+        const item = this.headersAndData[i]
         if (!item) return
         const key = this.keyExtractor(item, i)
         return this.measureCell(key)
