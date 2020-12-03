@@ -293,7 +293,6 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
   }
 
   dataKeysHaveChanged = (a: sectionValue[], b: sectionValue[]) => {
-    return
     const lengthOfSectionsChanged =
       Object.keys(a).length !== Object.keys(b).length
     if (lengthOfSectionsChanged) return true
@@ -334,6 +333,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     const layoutInvalidationKeyHasChanged =
       prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey ||
       this.lastKey !== this.props.layoutInvalidationKey
+    console.log(layoutInvalidationKeyHasChanged)
     // const hashCurr = hash(decycle(this.props.data))
     // const hashPrev = hash(decycle(prevProps.data))
 
@@ -341,10 +341,10 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
     let dataHasChanged = false
 
-    if (!layoutInvalidationKeyHasChanged) {
-      dataHasChanged =
-        hash(decycle(prevProps.data)) !== hash(decycle(this.props.data))
-    }
+    // if (!layoutInvalidationKeyHasChanged) {
+    //   dataHasChanged =
+    //     hash(decycle(prevProps.data)) !== hash(decycle(this.props.data))
+    // }
 
     const firstEnd = Date.now()
     console.log(`first ${firstEnd - firstStart}`)
@@ -478,18 +478,8 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     }
 
     const changedObject: any[] = []
-    const highetThanFirstSection: any[] = []
 
     if (isSectionHeader && onDragEnd) {
-      let lastSection: any
-
-      newData.forEach((headerOrData) => {
-        if (isSectionHeader(headerOrData)) {
-          changedObject.push({ section: headerOrData, data: [] })
-          return
-        }
-        changedObject[changedObject.length - 1].data.push(headerOrData)
-      })
       onDragEnd({ from, to, data: changedObject, dataArr: newData })
     }
 
@@ -497,7 +487,8 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     const hi = Math.max(from, to) + 1
     for (let i = lo; i < hi; i++) {
       this.queue.push(() => {
-        const item = this.headersAndData[i]
+        //         const item = this.headersAndData[i]
+        const item = newData[i]
         if (!item) return
         const key = this.keyExtractor(item, i)
         return this.measureCell(key)
