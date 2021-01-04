@@ -904,25 +904,37 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     },
   ])
 
-  onPanGestureEvent = event([
-    {
-      nativeEvent: ({ x, y }: PanGestureHandlerEventExtra) =>
-        cond(
-          and(
-            this.isHovering,
-            eq(this.panGestureState, GestureState.ACTIVE),
-            not(this.disabled)
-          ),
-          [
-            cond(not(this.hasMoved), set(this.hasMoved, 1)),
-            set(
-              this.touchAbsolute,
-              add(this.props.horizontal ? x : y, this.activationDistance)
-            ),
-          ]
-        ),
-    },
-  ])
+  onPanGestureEvent = (notFuncEvent: PanGestureHandlerGestureEvent) => {
+    const nativeEvent = notFuncEvent.nativeEvent
+
+    if (this.props.onMove) {
+      this.props.onMove(notFuncEvent)
+    }
+
+    const setValue = () => {
+      this.touchAbsolute.setValue(
+        add(
+          this.props.horizontal ? nativeEvent.x : nativeEvent.y,
+          this.activationDistance
+        )
+      )
+      return this.touchAbsolute
+    }
+
+    const setMoved = () => {
+      this.hasMoved.setValue(1 as any)
+      return this.hasMoved
+    }
+
+    cond(
+      and(
+        this.isHovering,
+        eq(this.panGestureState, GestureState.ACTIVE),
+        not(this.disabled)
+      ),
+      [cond(not(this.hasMoved), setMoved()), setValue()]
+    )
+  }
 
   hoverComponentTranslate = cond(
     clockRunning(this.hoverClock),
