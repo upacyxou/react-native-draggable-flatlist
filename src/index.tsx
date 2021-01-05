@@ -91,45 +91,47 @@ export type DragEndParams<T> = {
   to: number
 }
 
-export type RenderItemParams<T> = {
-  item: RenderItemParams<T>
+interface RenderItemParams<T> {
+  item: any
   index?: number // This is technically a "last known index" since cells don't necessarily rerender when their index changes
   drag: () => void
   isActive: boolean
 }
-type sectionValue = {
-  data: any[]
-  section: any[]
+interface sectionValue<T> {
+  data: T[]
+  section: string
 }
 
 type Modify<T, R> = Omit<T, keyof R> & R
-type Props<T> = Modify<
-  SectionListProps<T>,
-  {
-    autoscrollSpeed?: number
-    autoscrollThreshold?: number
-    data: sectionValue[]
-    onRef?: (ref: any) => void
-    onDragBegin?: (index: number) => void
-    onRelease?: (index: number) => void
-    onDragEnd?: (params: DragEndParams<T>) => void
-    renderItem: (params: RenderItemParams<T>) => React.ReactNode
-    renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode
-    renderPlaceholder?: (params: {
-      item: any
-      index: number
-    }) => React.ReactNode
-    keyExtractor: (item: RenderItemParams<T>, index: number) => string
-    onMove?: (gestureEvent: PanGestureHandlerGestureEvent) => void
-    isSectionHeader?: (itemToCheck: any) => boolean
-    animationConfig: Partial<Animated.SpringConfig>
-    activationDistance?: number
-    debug?: boolean
-    layoutInvalidationKey?: string
-    onScrollOffsetChange?: (scrollOffset: number) => void
-    onPlaceholderIndexChange?: (placeholderIndex: number) => void
-    dragItemOverflow?: boolean
-  } & Partial<DefaultProps>
+type Props<T> = Omit<
+  Modify<
+    SectionListProps<T>,
+    {
+      autoscrollSpeed?: number
+      autoscrollThreshold?: number
+      data: sectionValue<T>[]
+      onRef?: (ref: any) => void
+      onDragBegin?: (index: number) => void
+      onRelease?: (index: number) => void
+      onDragEnd?: (params: DragEndParams<T>) => void
+      renderItem: (params: RenderItemParams<T>) => React.ReactNode
+      renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode
+      renderPlaceholder?: (params: {
+        item: any
+        index: number
+      }) => React.ReactNode
+      onMove?: (gestureEvent: PanGestureHandlerGestureEvent) => void
+      isSectionHeader?: (itemToCheck: any) => boolean
+      animationConfig: Partial<Animated.SpringConfig>
+      activationDistance?: number
+      debug?: boolean
+      layoutInvalidationKey?: string
+      onScrollOffsetChange?: (scrollOffset: number) => void
+      onPlaceholderIndexChange?: (placeholderIndex: number) => void
+      dragItemOverflow?: boolean
+    } & Partial<DefaultProps>
+  >,
+  'sections'
 >
 
 type State = {
@@ -292,7 +294,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     onRef && onRef(this.SectionListRef)
   }
 
-  dataKeysHaveChanged = (a: sectionValue[], b: sectionValue[]) => {
+  dataKeysHaveChanged = (a: sectionValue<T>[], b: sectionValue<T>[]) => {
     const lengthOfSectionsChanged =
       Object.keys(a).length !== Object.keys(b).length
     if (lengthOfSectionsChanged) return true
@@ -393,7 +395,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
         layoutInvalidationKeyHasChanged ||
         this.dataKeysHaveChanged(prevProps.data, this.props.data)
       ) {
-        this.queue.push(() => this.measureAll(this.props.data))
+        this.queue.push(() => this.measureAll())
       }
 
       const sixthEnd = Date.now()
@@ -594,7 +596,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     this.cellData.set(key, cellData)
   }
 
-  measureAll = (sections: sectionValue[]) => {
+  measureAll = () => {
     this.headersAndData.forEach((dataOrHeader: any, index: number) => {
       const key = this.keyExtractor(dataOrHeader, index)
       this.measureCell(key)
@@ -673,7 +675,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
     })
   }
 
-  keyExtractor = (item: RenderItemParams<T>, index: number) => {
+  keyExtractor = (item: T, index: number) => {
     if (this.props.keyExtractor) return this.props.keyExtractor(item, index)
     else
       throw new Error('You must provide a keyExtractor to DraggableSectionList')
