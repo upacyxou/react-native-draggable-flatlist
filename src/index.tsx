@@ -92,7 +92,7 @@ export type DragEndParams<T> = {
 }
 
 interface RenderItemParams<T> {
-  item: any
+  item: T
   index?: number // This is technically a "last known index" since cells don't necessarily rerender when their index changes
   drag: () => void
   isActive: boolean
@@ -103,7 +103,7 @@ interface sectionValue<T> {
 }
 
 type Modify<T, R> = Omit<T, keyof R> & R
-type Props<T> = Omit<
+type Props<T, K> = Omit<
   Modify<
     SectionListProps<T>,
     {
@@ -115,7 +115,7 @@ type Props<T> = Omit<
       onRelease?: (index: number) => void
       onDragEnd?: (params: DragEndParams<T>) => void
       renderItem: (params: RenderItemParams<T>) => React.ReactNode
-      renderSectionHeader: (params: RenderItemParams<T>) => React.ReactNode
+      renderSectionHeader: (params: RenderItemParams<K>) => React.ReactNode
       renderPlaceholder?: (params: {
         item: any
         index: number
@@ -160,7 +160,7 @@ function onNextFrame(callback: () => void) {
   })
 }
 
-class DraggableSectionList<T> extends React.Component<Props<T>, State> {
+class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
   headersAndData: any[] = []
 
   state: State = {
@@ -270,7 +270,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
   queue: (() => void | Promise<void>)[] = []
 
-  static getDerivedStateFromProps(props: Props<any>) {
+  static getDerivedStateFromProps(props: Props<any, any>) {
     return {
       extraData: props.extraData,
     }
@@ -278,7 +278,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
   static defaultProps = defaultProps
 
-  constructor(props: Props<T>) {
+  constructor(props: Props<T, K>) {
     super(props)
     const { data, onRef } = props
     data.forEach((item) => {
@@ -329,7 +329,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
 
   lastKey = ''
 
-  componentDidUpdate = (prevProps: Props<T>, prevState: State) => {
+  componentDidUpdate = (prevProps: Props<T, K>, prevState: State) => {
     const firstStart = Date.now()
 
     const layoutInvalidationKeyHasChanged =
@@ -1066,7 +1066,7 @@ class DraggableSectionList<T> extends React.Component<Props<T>, State> {
               itemKey={key}
               keyToIndex={this.keyToIndex}
               renderItem={this.props.renderItem}
-              item={item}
+              item={item.item}
               drag={this.drag}
               onUnmount={onUnmount}
             />
@@ -1246,7 +1246,7 @@ type RowItemProps<T> = {
   extraData?: any
   drag: (hoverComponent: React.ReactNode, itemKey: string) => void
   keyToIndex: Map<string, number>
-  item: RenderItemParams<T>
+  item: T
   renderItem: (params: RenderItemParams<T>) => React.ReactNode
   itemKey: string
   onUnmount: () => void
