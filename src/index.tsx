@@ -138,6 +138,7 @@ type Props<T, K> = Omit<
 type State = {
   activeKey: string | null
   hoverComponent: React.ReactNode | null
+  hoverComponentHeight: number
 }
 
 type CellData = {
@@ -167,6 +168,7 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
   state: State = {
     activeKey: null,
     hoverComponent: null,
+    hoverComponentHeight: 0,
   }
 
   containerRef = React.createRef<Animated.View>()
@@ -882,7 +884,9 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
     const setValue = () => {
       this.touchAbsolute.setValue(
         add(
-          this.props.horizontal ? nativeEvent.x : nativeEvent.y,
+          this.props.horizontal
+            ? nativeEvent.x
+            : nativeEvent.y - this.state.hoverComponentHeight / 2,
           this.activationDistance
         )
       )
@@ -921,6 +925,9 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
 
     return (
       <Animated.View
+        onLayout={(e) => {
+          this.setState({ hoverComponentHeight: e.nativeEvent.layout.height })
+        }}
         style={[
           horizontal
             ? styles.hoverComponentHorizontal
