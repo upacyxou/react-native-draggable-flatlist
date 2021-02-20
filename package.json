@@ -1,6 +1,6 @@
 {
   "name": "@upacyxou/react-native-draggable-sectionlist",
-  "version": "0.0.9999992",
+  "version": "0.1.2",
   "description": "A drag-and-drop-enabled sectionlist component for React Native",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

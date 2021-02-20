@@ -85,10 +85,11 @@ type DefaultProps = Readonly<typeof defaultProps>
 type AnimatedSectionListType<T> = { getNode: () => typeof AnimatedSectionList }
 
 export type DragEndParams<T> = {
-  data: T[]
+  beforeChangesArr: T[]
   dataArr: T[]
   from: number
   to: number
+  promise: (value: void | PromiseLike<void>) => void
 }
 
 interface RenderItemParams<T> {
@@ -330,34 +331,16 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
   lastKey = ''
 
   componentDidUpdate = (prevProps: Props<T, K>, prevState: State) => {
-    const firstStart = Date.now()
-
     const layoutInvalidationKeyHasChanged =
       prevProps.layoutInvalidationKey !== this.props.layoutInvalidationKey ||
       this.lastKey !== this.props.layoutInvalidationKey
-    console.log(layoutInvalidationKeyHasChanged)
-    // const hashCurr = hash(decycle(this.props.data))
-    // const hashPrev = hash(decycle(prevProps.data))
-
-    // const dataHasChanged = hashCurr !== hashPrev
 
     let dataHasChanged = false
-
-    // if (!layoutInvalidationKeyHasChanged) {
-    //   dataHasChanged =
-    //     hash(decycle(prevProps.data)) !== hash(decycle(this.props.data))
-    // }
-
-    const firstEnd = Date.now()
-    console.log(`first ${firstEnd - firstStart}`)
-
-    const secondStart = Date.now()
 
     if (layoutInvalidationKeyHasChanged || dataHasChanged) {
       if (this.props.layoutInvalidationKey) {
         this.lastKey = this.props.layoutInvalidationKey
       }
-      const thirdStart = Date.now()
 
       this.headersAndData = []
       this.props.data.forEach((item) => {
@@ -367,44 +350,23 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
         })
       })
 
-      const thirdEnd = Date.now()
-      console.log(`third: ${thirdEnd - thirdStart}`)
-
-      const fourthStart = Date.now()
-
       this.keyToIndex.clear()
       this.headersAndData.forEach((dataOrHeader, index) => {
         const key = this.keyExtractor(dataOrHeader, index)
         this.keyToIndex.set(key, index)
       })
 
-      const fourthEnd = Date.now()
-      console.log(`fourth: ${fourthEnd - fourthStart}`)
-
-      const fifthStart = Date.now()
-
       // Remeasure on next paint
       this.updateCellData()
       onNextFrame(this.flushQueue)
 
-      const fifthEnd = Date.now()
-      console.log(`fifth: ${fifthEnd - fifthStart}`)
-
-      const sixthStart = Date.now()
       if (
         layoutInvalidationKeyHasChanged ||
         this.dataKeysHaveChanged(prevProps.data, this.props.data)
       ) {
         this.queue.push(() => this.measureAll())
       }
-
-      const sixthEnd = Date.now()
-      console.log(`sixth: ${sixthEnd - sixthStart}`)
     }
-
-    const secondEnd = Date.now()
-    console.log(`second: ${secondEnd - secondStart}`)
-
     if (!prevState.activeKey && this.state.activeKey) {
       const index = this.keyToIndex.get(this.state.activeKey)
       if (index !== undefined) {
@@ -468,34 +430,38 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
     onRelease && onRelease(index)
   }
 
-  onDragEnd = ([from, to]: readonly number[]) => {
+  onDragEnd = async ([from, to]: readonly number[]) => {
+    const promise = new Promise<void>((resolve, reject) => {
+      const { onDragEnd, isSectionHeader } = this.props
+
+      let newData = [...this.headersAndData]
+      if (from !== to) {
+        this.headersAndData.splice(from, 1)
+        this.headersAndData.splice(to, 0, newData[from])
+      }
+      if (isSectionHeader && onDragEnd) {
+        onDragEnd({
+          from,
+          to,
+          beforeChangesArr: newData,
+          dataArr: this.headersAndData,
+          promise: resolve,
+        })
+      }
+      const lo = Math.min(from, to) - 1
+      const hi = Math.max(from, to) + 1
+      for (let i = lo; i < hi; i++) {
+        this.queue.push(() => {
+          //         const item = this.headersAndData[i]
+          const item = this.headersAndData[i]
+          if (!item) return
+          const key = this.keyExtractor(item, i)
+          return this.measureCell(key)
+        })
+      }
+    })
+    await promise
     this.resetHoverState()
-    const { onDragEnd, isSectionHeader } = this.props
-
-    let newData = [...this.headersAndData]
-
-    if (from !== to) {
-      this.headersAndData.splice(from, 1)
-      this.headersAndData.splice(to, 0, newData[from])
-    }
-
-    const changedObject: any[] = []
-
-    if (isSectionHeader && onDragEnd) {
-      onDragEnd({ from, to, data: changedObject, dataArr: this.headersAndData })
-    }
-
-    const lo = Math.min(from, to) - 1
-    const hi = Math.max(from, to) + 1
-    for (let i = lo; i < hi; i++) {
-      this.queue.push(() => {
-        //         const item = this.headersAndData[i]
-        const item = this.headersAndData[i]
-        if (!item) return
-        const key = this.keyExtractor(item, i)
-        return this.measureCell(key)
-      })
-    }
   }
 
   updateCellData = () => {
@@ -862,7 +828,7 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
       [
         set(this.disabled, 1),
         cond(defined(this.hoverClock), [
-          cond(clockRunning(this.hoverClock), stopClock(this.hoverClock)),
+          cond(clockRunning(this.hoverClock), [stopClock(this.hoverClock)]),
           set(this.hoverAnimState.position, this.hoverAnim),
           startClock(this.hoverClock),
         ]),
@@ -1199,12 +1165,10 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
                     this.hoverAnimConfig
                   ),
                   cond(eq(this.hoverAnimState.finished, 1), [
-                    this.resetHoverSpring,
-                    set(this.hasMoved, 0),
                     stopClock(this.hoverClock),
                     call(this.moveEndParams, this.onDragEnd),
-                    // this.resetHoverSpring,
-                    // set(this.hasMoved, 0),
+                    this.resetHoverSpring,
+                    set(this.hasMoved, 0),
                   ]),
                 ]),
               ])
