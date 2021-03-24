@@ -434,6 +434,11 @@ class DraggableSectionList<T, K> extends React.Component<Props<T, K>, State> {
 
   onDragEnd = async ([from, to]: readonly number[]) => {
     const promise = new Promise<void>((resolve, reject) => {
+      if (from === to || from === 0 || to === 0) {
+        this.resetHoverState()
+        resolve()
+        return
+      }
       const { onDragEnd, isSectionHeader } = this.props
 
       let newData = [...this.headersAndData]
